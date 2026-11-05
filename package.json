@@ -4,14 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/verificar-despliegue.mjs",
-    "build": "node scripts/ejecutar-next.mjs build",
-    "start": "node scripts/ejecutar-next.mjs start",
-    "test": "node scripts/probar-aplicacion.mjs",
-    "test:concurrencia": "node scripts/probar-aplicacion.mjs",
-    "test:legacy-supabase": "node scripts/prueba-concurrencia.mjs",
-    "format": "prettier --write app componentes lib scripts next.config.mjs package.json vercel.json README.md GUIA_DEL_CODIGO.md .prettierrc.json",
-    "format:check": "prettier --check app componentes lib scripts next.config.mjs package.json vercel.json README.md GUIA_DEL_CODIGO.md .prettierrc.json"
+    "build": "next build",
+    "start": "next start",
+    "format": "prettier --write app componentes lib scripts next.config.mjs package.json vercel.json .prettierrc.json",
+    "format:check": "prettier --check app componentes lib scripts next.config.mjs package.json vercel.json .prettierrc.json"
   },
   "engines": {
     "node": "22.x"
