@@ -1,11 +1,10 @@
 import 'server-only';
-import { DatabaseSync } from 'node:sqlite';
+import type { BaseDatos } from './base-datos';
 import { randomUUID } from 'node:crypto';
 import { obtenerFechaActual } from './fechas';
 import { PERSONAS_COMPRANDO_POR_EVENTO } from '../configuracion';
-
 // Catálogo inicial. Solo se inserta si la base de datos todavía no contiene eventos.
-export function crearEventosEjemplo(baseDatos: DatabaseSync) {
+export async function crearEventosEjemplo(baseDatos: BaseDatos) {
   const eventosEjemplo = [
     {
       identificadorUrl: 'selva-sonora',
@@ -98,51 +97,38 @@ export function crearEventosEjemplo(baseDatos: DatabaseSync) {
       destacado: 0,
     },
   ];
-  baseDatos.exec('BEGIN IMMEDIATE');
-  try {
-    for (const eventoEjemplo of eventosEjemplo) {
-      const id = randomUUID();
-      baseDatos
-        .prepare('INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(
-          id,
-          eventoEjemplo.identificadorUrl,
-          eventoEjemplo.titulo,
-          eventoEjemplo.resumen,
-          eventoEjemplo.descripcion,
-          eventoEjemplo.recinto,
-          eventoEjemplo.ciudad,
-          new Date(String(eventoEjemplo.fechaInicio)).toISOString(),
-          eventoEjemplo.categoria,
-          eventoEjemplo.imagen,
-          'published',
-          eventoEjemplo.destacado,
-          PERSONAS_COMPRANDO_POR_EVENTO,
-          obtenerFechaActual(),
-        );
-      baseDatos
+  for (const eventoEjemplo of eventosEjemplo) {
+    const id = randomUUID();
+    await baseDatos
+      .prepare('INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(
+        id,
+        eventoEjemplo.identificadorUrl,
+        eventoEjemplo.titulo,
+        eventoEjemplo.resumen,
+        eventoEjemplo.descripcion,
+        eventoEjemplo.recinto,
+        eventoEjemplo.ciudad,
+        new Date(String(eventoEjemplo.fechaInicio)).toISOString(),
+        eventoEjemplo.categoria,
+        eventoEjemplo.imagen,
+        'published',
+        eventoEjemplo.destacado,
+        PERSONAS_COMPRANDO_POR_EVENTO,
+        obtenerFechaActual(),
+      );
+    await baseDatos
+      .prepare('INSERT INTO tiers VALUES (?,?,?,?,?)')
+      .run(
+        randomUUID(),
+        id,
+        'General',
+        Number(eventoEjemplo.precioSoles) * 100,
+        Number(eventoEjemplo.aforoGeneral),
+      );
+    if (eventoEjemplo.categoria === 'Música' || eventoEjemplo.categoria === 'Festivales')
+      await baseDatos
         .prepare('INSERT INTO tiers VALUES (?,?,?,?,?)')
-        .run(
-          randomUUID(),
-          id,
-          'General',
-          Number(eventoEjemplo.precioSoles) * 100,
-          Number(eventoEjemplo.aforoGeneral),
-        );
-      if (eventoEjemplo.categoria === 'Música' || eventoEjemplo.categoria === 'Festivales')
-        baseDatos
-          .prepare('INSERT INTO tiers VALUES (?,?,?,?,?)')
-          .run(
-            randomUUID(),
-            id,
-            'Preferencial',
-            (Number(eventoEjemplo.precioSoles) + 65) * 100,
-            60,
-          );
-    }
-    baseDatos.exec('COMMIT');
-  } catch (errorCapturado) {
-    baseDatos.exec('ROLLBACK');
-    throw errorCapturado;
+        .run(randomUUID(), id, 'Preferencial', (Number(eventoEjemplo.precioSoles) + 65) * 100, 60);
   }
 }

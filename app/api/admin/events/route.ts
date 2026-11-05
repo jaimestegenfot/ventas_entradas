@@ -9,7 +9,7 @@ export async function POST(solicitud: Request) {
   try {
     verificarMismoOrigen(solicitud);
     await exigirAdministrador();
-    return responderJson({ event: guardarEvento(await solicitud.json()) });
+    return responderJson({ event: await guardarEvento(await solicitud.json()) });
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }

@@ -11,13 +11,20 @@ import {
   responderError,
   responderJson,
   verificarMismoOrigen,
+  usarCookieSegura,
 } from '../../../../lib/api';
 export const dynamic = 'force-dynamic';
-const intentosAcceso = new Map<string, { count: number; until: number }>();
+const intentosAcceso = new Map<
+  string,
+  {
+    count: number;
+    until: number;
+  }
+>();
 export async function GET() {
   try {
     return responderJson({
-      authenticated: esAdministrador((await cookies()).get(nombreCookieAdministrador)?.value),
+      authenticated: await esAdministrador((await cookies()).get(nombreCookieAdministrador)?.value),
     });
   } catch (errorCapturado) {
     return responderError(errorCapturado);
@@ -35,7 +42,7 @@ export async function POST(solicitud: Request) {
       throw new ErrorOperacion('Escribe tu contraseña.', 400);
     let tokenSesion: string;
     try {
-      tokenSesion = iniciarSesionAdministrador(datosSolicitud.password);
+      tokenSesion = await iniciarSesionAdministrador(datosSolicitud.password);
     } catch (errorCapturado) {
       intentosAcceso.set(direccionIp, {
         count:
@@ -51,7 +58,7 @@ export async function POST(solicitud: Request) {
     (await cookies()).set(nombreCookieAdministrador, tokenSesion, {
       httpOnly: true,
       sameSite: 'strict',
-      secure: process.env.COOKIE_SECURE === 'true',
+      secure: usarCookieSegura(),
       path: '/',
       maxAge: SEGUNDOS_SESION_ADMINISTRADOR,
     });
@@ -65,7 +72,7 @@ export async function DELETE(solicitud: Request) {
     verificarMismoOrigen(solicitud);
     const cookiesGuardadas = await cookies();
     const tokenSesion = cookiesGuardadas.get(nombreCookieAdministrador)?.value;
-    if (tokenSesion) cerrarSesionAdministrador(tokenSesion);
+    if (tokenSesion) await cerrarSesionAdministrador(tokenSesion);
     cookiesGuardadas.delete(nombreCookieAdministrador);
     return responderJson({ ok: true });
   } catch (errorCapturado) {

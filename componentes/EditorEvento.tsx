@@ -4,7 +4,7 @@ import { consultarApi } from '../lib/cliente';
 import { categorias, type InformacionEvento } from '../lib/tipos';
 import { VentanaModal } from './VentanaModal';
 import { Icono } from './Icono';
-import { PERSONAS_COMPRANDO_POR_EVENTO } from '../lib/configuracion';
+import { PERSONAS_COMPRANDO_POR_EVENTO, MAXIMO_BYTES_IMAGEN } from '../lib/configuracion';
 const portadasDisponibles = ['festival', 'indie', 'theater', 'river', 'electronic', 'running'];
 export function EditorEvento({
   evento,
@@ -34,6 +34,8 @@ export function EditorEvento({
     establecerSubiendoImagen(true);
     establecerError('');
     try {
+      if (archivo.size > MAXIMO_BYTES_IMAGEN)
+        throw new Error('La imagen debe pesar como máximo 4 MB.');
       const datosSolicitud = new FormData();
       datosSolicitud.set('file', archivo);
       const respuesta = await consultarApi<{ url: string }>(
@@ -193,7 +195,7 @@ export function EditorEvento({
                   }}
                 />
               </label>
-              <p>JPG, PNG o WebP · Hasta 5 MB. O elige una de la biblioteca.</p>
+              <p>JPG, PNG o WebP · Hasta 4 MB. O elige una de la biblioteca.</p>
               <div className="cover-options">
                 {portadasDisponibles.map((nombrePortada) => (
                   <button

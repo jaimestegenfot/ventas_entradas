@@ -13,11 +13,21 @@ const escaparHtml = (texto: string) =>
     (caracter) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[caracter]!,
   );
-export async function GET(solicitud: Request, contexto: { params: Promise<{ id: string }> }) {
+export async function GET(
+  solicitud: Request,
+  contexto: {
+    params: Promise<{
+      id: string;
+    }>;
+  },
+) {
   try {
     const { id } = await contexto.params;
     if (!esIdentificadorValido(id)) return responderDatosInvalidos();
-    const { ticket: entrada, order: pedido } = obtenerDetalleEntrada(id, await obtenerVisitante());
+    const { ticket: entrada, order: pedido } = await obtenerDetalleEntrada(
+      id,
+      await obtenerVisitante(),
+    );
     const qr = await QRCode.toString(entrada.code, {
       type: 'svg',
       width: 220,

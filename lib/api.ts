@@ -6,6 +6,7 @@ import { esAdministrador } from './servidor/autenticacion';
 import { SEGUNDOS_COOKIE_VISITANTE } from './configuracion';
 export const nombreCookieVisitante = 'entrada_visitor';
 export const nombreCookieAdministrador = 'entrada_admin';
+export const usarCookieSegura = () => !!process.env.VERCEL || process.env.COOKIE_SECURE === 'true';
 export async function obtenerVisitante(crearSiNoExiste = false) {
   const cookiesGuardadas = await cookies();
   const valorActual = cookiesGuardadas.get(nombreCookieVisitante)?.value;
@@ -15,7 +16,7 @@ export async function obtenerVisitante(crearSiNoExiste = false) {
   cookiesGuardadas.set(nombreCookieVisitante, id, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.COOKIE_SECURE === 'true',
+    secure: usarCookieSegura(),
     path: '/',
     maxAge: SEGUNDOS_COOKIE_VISITANTE,
   });
@@ -23,7 +24,8 @@ export async function obtenerVisitante(crearSiNoExiste = false) {
 }
 export async function exigirAdministrador() {
   const tokenSesion = (await cookies()).get(nombreCookieAdministrador)?.value;
-  if (!esAdministrador(tokenSesion)) throw new ErrorOperacion('Inicia sesión para continuar.', 401);
+  if (!(await esAdministrador(tokenSesion)))
+    throw new ErrorOperacion('Inicia sesión para continuar.', 401);
   return tokenSesion!;
 }
 export function verificarMismoOrigen(solicitud: Request) {

@@ -13,7 +13,7 @@ export async function POST(solicitud: Request) {
     const datosSolicitud = await solicitud.json();
     if (typeof datosSolicitud.code !== 'string' || datosSolicitud.code.length > 100)
       return responderDatosInvalidos();
-    return responderJson(registrarIngreso(datosSolicitud.code));
+    return responderJson(await registrarIngreso(datosSolicitud.code));
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }

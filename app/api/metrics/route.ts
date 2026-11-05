@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     await exigirAdministrador();
-    return responderJson(obtenerDatosPanel());
+    return responderJson(await obtenerDatosPanel());
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }

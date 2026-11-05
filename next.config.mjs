@@ -6,7 +6,10 @@ const directorioProyecto = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const configuracionNext = {
   outputFileTracingRoot: directorioProyecto,
-  distDir: process.env.NEXT_DIST_DIR || '.next',
+  outputFileTracingExcludes: {
+    '/**': ['./.data/**/*', './.env*'],
+  },
+  distDir: process.env.VERCEL ? '.next' : process.env.NEXT_DIST_DIR || '.next',
   serverExternalPackages: ['node:sqlite'],
   poweredByHeader: false,
   async headers() {

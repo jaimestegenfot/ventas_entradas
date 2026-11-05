@@ -19,7 +19,9 @@ export async function POST(solicitud: Request) {
       !esIdentificadorValido(datosSolicitud.tierId)
     )
       return responderDatosInvalidos();
-    return responderJson({ order: reservarEntradas(datosSolicitud, await obtenerVisitante()) });
+    return responderJson({
+      order: await reservarEntradas(datosSolicitud, await obtenerVisitante()),
+    });
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }

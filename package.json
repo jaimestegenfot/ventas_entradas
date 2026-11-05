@@ -4,22 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/verificar-despliegue.mjs",
     "build": "node scripts/ejecutar-next.mjs build",
     "start": "node scripts/ejecutar-next.mjs start",
     "test": "node scripts/probar-aplicacion.mjs",
     "test:concurrencia": "node scripts/probar-aplicacion.mjs",
     "test:legacy-supabase": "node scripts/prueba-concurrencia.mjs",
-    "format": "prettier --write app componentes lib scripts next.config.mjs package.json README.md GUIA_DEL_CODIGO.md .prettierrc.json",
-    "format:check": "prettier --check app componentes lib scripts next.config.mjs package.json README.md GUIA_DEL_CODIGO.md .prettierrc.json"
+    "format": "prettier --write app componentes lib scripts next.config.mjs package.json vercel.json README.md GUIA_DEL_CODIGO.md .prettierrc.json",
+    "format:check": "prettier --check app componentes lib scripts next.config.mjs package.json vercel.json README.md GUIA_DEL_CODIGO.md .prettierrc.json"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   },
   "overrides": {
     "postcss": "8.5.32"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@supabase/supabase-js": "^2.57.0",
+    "@vercel/blob": "^2.8.2",
     "next": "^15.5.0",
     "qrcode": "^1.5.4",
     "react": "^19.1.0",

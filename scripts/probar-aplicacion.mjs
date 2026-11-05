@@ -37,6 +37,12 @@ const procesoServidor = spawn(
       ENTRADA_DATA_DIR: directorioPruebas,
       ENTRADA_DB_PATH: rutaBaseDatos,
       ADMIN_PASSWORD: contrasena,
+      // No usar servicios ni credenciales reales aunque existan en el entorno del desarrollador.
+      VERCEL: '',
+      TURSO_DATABASE_URL: '',
+      TURSO_AUTH_TOKEN: '',
+      BLOB_READ_WRITE_TOKEN: '',
+      COOKIE_SECURE: 'false',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,

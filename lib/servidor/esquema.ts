@@ -1,6 +1,5 @@
 // Los nombres de tablas y columnas se mantienen para abrir las bases de datos existentes.
-export const esquemaBaseDatos = `PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;
-    CREATE TABLE IF NOT EXISTS events (
+export const esquemaBaseDatos = `CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, subtitle TEXT NOT NULL DEFAULT '',
       description TEXT NOT NULL, venue TEXT NOT NULL, city TEXT NOT NULL, starts_at TEXT NOT NULL,
       category TEXT NOT NULL, image TEXT NOT NULL, status TEXT NOT NULL, featured INTEGER NOT NULL DEFAULT 0,

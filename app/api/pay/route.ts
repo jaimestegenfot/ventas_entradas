@@ -20,7 +20,7 @@ export async function POST(solicitud: Request) {
     )
       return responderDatosInvalidos();
     return responderJson({
-      order: confirmarPedido(
+      order: await confirmarPedido(
         datosSolicitud.reservationId,
         await obtenerVisitante(),
         datosSolicitud.name,

@@ -10,7 +10,7 @@ import {
 export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
-    return responderJson({ orders: listarPedidosVisitante(await obtenerVisitante(true)) });
+    return responderJson({ orders: await listarPedidosVisitante(await obtenerVisitante(true)) });
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }
@@ -20,7 +20,7 @@ export async function DELETE(solicitud: Request) {
     verificarMismoOrigen(solicitud);
     const datosSolicitud = await solicitud.json();
     if (!esIdentificadorValido(datosSolicitud.id)) return responderDatosInvalidos();
-    return responderJson(cancelarPedido(datosSolicitud.id, await obtenerVisitante()));
+    return responderJson(await cancelarPedido(datosSolicitud.id, await obtenerVisitante()));
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }

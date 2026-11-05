@@ -1,88 +1,99 @@
 import 'server-only';
 import { PERSONAS_COMPRANDO_POR_EVENTO } from '../configuracion';
-import { DatabaseSync } from 'node:sqlite';
+import type { BaseDatos } from './base-datos';
 import { randomUUID } from 'node:crypto';
 import type { InformacionEvento, CategoriaEvento } from '../tipos';
 import { categorias } from '../tipos';
 import { FilaBaseDatos, ErrorOperacion } from './compartido';
 import { obtenerFechaActual } from './fechas';
-import { obtenerBaseDatos, ejecutarTransaccion } from './base-datos';
-
+import { ejecutarLectura, ejecutarTransaccion } from './base-datos';
 // Consulta, publicación y edición de eventos, zonas, precios y aforos.
-export function listarEventos(incluirBorradores = false): InformacionEvento[] {
-  const baseDatos = obtenerBaseDatos();
-  return (
-    baseDatos
-      .prepare(
-        `SELECT * FROM events ${incluirBorradores ? '' : "WHERE status='published'"} ORDER BY featured DESC, starts_at`,
-      )
-      .all() as FilaBaseDatos[]
-  ).map((registroEvento) => obtenerInformacionEvento(baseDatos, registroEvento));
+export async function listarEventos(
+  incluirBorradores = false,
+  conexion?: BaseDatos,
+): Promise<InformacionEvento[]> {
+  if (!conexion) return ejecutarLectura((baseDatos) => listarEventos(incluirBorradores, baseDatos));
+  const eventos = await conexion
+    .prepare(
+      `SELECT e.*, (SELECT COALESCE(SUM(quantity),0) FROM orders WHERE event_id=e.id AND status='confirmed') AS sold FROM events e ${incluirBorradores ? '' : "WHERE status='published'"} ORDER BY featured DESC, starts_at`,
+    )
+    .all();
+  const zonas = await conexion
+    .prepare(
+      `SELECT t.*, COALESCE(SUM(o.quantity),0) AS occupied FROM tiers t LEFT JOIN orders o ON o.tier_id=t.id AND (o.status='confirmed' OR (o.status='held' AND o.expires_at>?)) GROUP BY t.id ORDER BY t.price_cents`,
+    )
+    .all(obtenerFechaActual());
+  return eventos.map((evento) =>
+    componerInformacionEvento(
+      evento,
+      zonas.filter((zona) => zona.event_id === evento.id),
+      evento.sold,
+    ),
+  );
 }
 
-export function obtenerInformacionEvento(
-  baseDatos: DatabaseSync,
+export async function obtenerInformacionEvento(
+  baseDatos: BaseDatos,
   registroEvento: FilaBaseDatos,
+): Promise<InformacionEvento> {
+  const zonas = await baseDatos
+    .prepare(
+      `SELECT t.*, COALESCE(SUM(o.quantity),0) AS occupied FROM tiers t LEFT JOIN orders o ON o.tier_id=t.id AND (o.status='confirmed' OR (o.status='held' AND o.expires_at>?)) WHERE t.event_id=? GROUP BY t.id ORDER BY t.price_cents`,
+    )
+    .all(obtenerFechaActual(), registroEvento.id);
+  const vendidos = (await baseDatos
+    .prepare(
+      "SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE event_id=? AND status='confirmed'",
+    )
+    .get(registroEvento.id))!.n;
+  return componerInformacionEvento(registroEvento, zonas, vendidos);
+}
+
+function componerInformacionEvento(
+  registro: FilaBaseDatos,
+  registrosZonas: FilaBaseDatos[],
+  vendidos: number,
 ): InformacionEvento {
-  const zonas = (
-    baseDatos
-      .prepare('SELECT * FROM tiers WHERE event_id=? ORDER BY price_cents')
-      .all(registroEvento.id) as FilaBaseDatos[]
-  ).map((registroZona) => {
-    const aforoOcupado = baseDatos
-      .prepare(
-        "SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE tier_id=? AND (status='confirmed' OR (status='held' AND expires_at>?))",
-      )
-      .get(registroZona.id, obtenerFechaActual()) as FilaBaseDatos;
-    return {
-      id: registroZona.id,
-      name: registroZona.name,
-      priceCents: registroZona.price_cents,
-      capacity: registroZona.capacity,
-      available: Math.max(0, registroZona.capacity - aforoOcupado.n),
-    };
-  });
-  const entradasVendidas = (
-    baseDatos
-      .prepare(
-        "SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE event_id=? AND status='confirmed'",
-      )
-      .get(registroEvento.id) as FilaBaseDatos
-  ).n;
+  const zonas = registrosZonas.map((zona) => ({
+    id: zona.id,
+    name: zona.name,
+    priceCents: zona.price_cents,
+    capacity: zona.capacity,
+    available: Math.max(0, zona.capacity - zona.occupied),
+  }));
   return {
-    id: registroEvento.id,
-    slug: registroEvento.slug,
-    title: registroEvento.title,
-    subtitle: registroEvento.subtitle,
-    description: registroEvento.description,
-    venue: registroEvento.venue,
-    city: registroEvento.city,
-    startsAt: registroEvento.starts_at,
-    category: registroEvento.category,
-    image: registroEvento.image,
-    status: registroEvento.status,
-    featured: !!registroEvento.featured,
+    id: registro.id,
+    slug: registro.slug,
+    title: registro.title,
+    subtitle: registro.subtitle,
+    description: registro.description,
+    venue: registro.venue,
+    city: registro.city,
+    startsAt: registro.starts_at,
+    category: registro.category,
+    image: registro.image,
+    status: registro.status,
+    featured: !!registro.featured,
     queueSlots: PERSONAS_COMPRANDO_POR_EVENTO,
     tiers: zonas,
-    priceCents: Math.min(...zonas.map((registroZona) => registroZona.priceCents)),
-    capacity: zonas.reduce((acumulado, registroZona) => acumulado + registroZona.capacity, 0),
-    available: zonas.reduce((acumulado, registroZona) => acumulado + registroZona.available, 0),
-    sold: entradasVendidas,
+    priceCents: Math.min(...zonas.map((zona) => zona.priceCents)),
+    capacity: zonas.reduce((n, zona) => n + zona.capacity, 0),
+    available: zonas.reduce((n, zona) => n + zona.available, 0),
+    sold: vendidos,
   };
 }
 
-export function obtenerEventoPublicado(baseDatos: DatabaseSync, id: string) {
-  const registroEvento = baseDatos
+export async function obtenerEventoPublicado(baseDatos: BaseDatos, id: string) {
+  const registroEvento = (await baseDatos
     .prepare("SELECT * FROM events WHERE id=? AND status='published'")
-    .get(id) as FilaBaseDatos | undefined;
+    .get(id)) as FilaBaseDatos | undefined;
   if (!registroEvento) throw new ErrorOperacion('El evento no está disponible.', 404);
   if (new Date(registroEvento.starts_at).getTime() <= Date.now())
     throw new ErrorOperacion('La venta para este evento ha finalizado.');
   return registroEvento;
 }
-
-export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
-  return ejecutarTransaccion((baseDatos) => {
+export async function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
+  return await ejecutarTransaccion(async (baseDatos) => {
     const camposObligatorios = [
       'title',
       'description',
@@ -142,7 +153,8 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
       nombresZonas.add(registroZona.name.trim().toLowerCase());
     }
     const eventoAnterior = id
-      ? (baseDatos.prepare('SELECT * FROM events WHERE id=?').get(id) as FilaBaseDatos | undefined)
+      ? ((await baseDatos.prepare('SELECT * FROM events WHERE id=?').get(id)) as
+          FilaBaseDatos | undefined)
       : undefined;
     if (id && !eventoAnterior) throw new ErrorOperacion('Evento no encontrado.', 404);
     const idEvento = id || randomUUID();
@@ -155,21 +167,21 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')}-${idEvento.slice(0, 6)}`;
     if (datosEvento.featured && datosEvento.status === 'published')
-      baseDatos.prepare('UPDATE events SET featured=0').run();
+      await baseDatos.prepare('UPDATE events SET featured=0').run();
     if (eventoAnterior) {
-      const zonasAnteriores = baseDatos
+      const zonasAnteriores = (await baseDatos
         .prepare('SELECT * FROM tiers WHERE event_id=?')
-        .all(idEvento) as FilaBaseDatos[];
+        .all(idEvento)) as FilaBaseDatos[];
       for (const registroZona of zonasAnteriores) {
         const zonaActualizada = datosEvento.tiers.find(
           (zonaPropuesta: FilaBaseDatos) => zonaPropuesta.id === registroZona.id,
         );
         const aforoOcupado = (
-          baseDatos
+          (await baseDatos
             .prepare(
               "SELECT COALESCE(SUM(quantity),0) AS n FROM orders WHERE tier_id=? AND (status='confirmed' OR (status='held' AND expires_at>?))",
             )
-            .get(registroZona.id, obtenerFechaActual()) as FilaBaseDatos
+            .get(registroZona.id, obtenerFechaActual())) as FilaBaseDatos
         ).n;
         if (
           aforoOcupado &&
@@ -182,13 +194,13 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
           );
         if (
           !zonaActualizada &&
-          baseDatos.prepare('SELECT 1 FROM orders WHERE tier_id=?').get(registroZona.id)
+          (await baseDatos.prepare('SELECT 1 FROM orders WHERE tier_id=?').get(registroZona.id))
         )
           throw new ErrorOperacion('No puedes eliminar una zona que tiene pedidos.');
         if (!zonaActualizada)
-          baseDatos.prepare('DELETE FROM tiers WHERE id=?').run(registroZona.id);
+          await baseDatos.prepare('DELETE FROM tiers WHERE id=?').run(registroZona.id);
       }
-      baseDatos
+      await baseDatos
         .prepare(
           'UPDATE events SET title=?,subtitle=?,description=?,venue=?,city=?,starts_at=?,category=?,image=?,status=?,featured=?,queue_slots=? WHERE id=?',
         )
@@ -207,7 +219,7 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
           idEvento,
         );
     } else
-      baseDatos
+      await baseDatos
         .prepare('INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .run(
           idEvento,
@@ -228,11 +240,11 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
     for (const registroZona of datosEvento.tiers) {
       const registroExistente =
         registroZona.id &&
-        baseDatos
+        (await baseDatos
           .prepare('SELECT id FROM tiers WHERE id=? AND event_id=?')
-          .get(registroZona.id, idEvento);
+          .get(registroZona.id, idEvento));
       if (registroExistente)
-        baseDatos
+        await baseDatos
           .prepare('UPDATE tiers SET name=?,price_cents=?,capacity=? WHERE id=?')
           .run(
             registroZona.name.trim(),
@@ -241,7 +253,7 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
             registroZona.id,
           );
       else
-        baseDatos
+        await baseDatos
           .prepare('INSERT INTO tiers VALUES (?,?,?,?,?)')
           .run(
             randomUUID(),
@@ -251,9 +263,9 @@ export function guardarEvento(datosEvento: FilaBaseDatos, id?: string) {
             registroZona.capacity,
           );
     }
-    return obtenerInformacionEvento(
+    return await obtenerInformacionEvento(
       baseDatos,
-      baseDatos.prepare('SELECT * FROM events WHERE id=?').get(idEvento) as FilaBaseDatos,
+      (await baseDatos.prepare('SELECT * FROM events WHERE id=?').get(idEvento)) as FilaBaseDatos,
     );
   });
 }

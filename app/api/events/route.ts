@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   try {
     await obtenerVisitante(true);
-    return responderJson({ events: listarEventos(), mode: 'demo' });
+    return responderJson({ events: await listarEventos(), mode: 'demo' });
   } catch (errorCapturado) {
     return responderError(errorCapturado);
   }
