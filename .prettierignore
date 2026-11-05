@@ -1,7 +1,0 @@
-node_modules/
-.next*/
-.data/
-.npm-cache/
-package-lock.json
-public/
-next-env.d.ts
